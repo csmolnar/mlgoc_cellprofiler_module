@@ -183,20 +183,30 @@ drawnow
 OrigImage = CPretrieveimage(handles,ImageName,ModuleName,'MustBeGray','CheckScale');
 [ImageHeight, ImageWidth] = size(OrigImage);
 
+%%% AlphaTilde a parameter for active contour model
+AlphaTilde = 1;
+
 %%% LamdbaTilde a scaling parameter for active contour model
 LambdaTilde = 1;
 
 %%% Rhatstar energy normalization parameter for inflection point model
 %%% its values have to be between 0.69 and 0.78
 %%% for positive alpha and beta values
-Rhatstar = 0.75;
+% Rhatstar = 0.75;
+
+%%% Rhatstar energy normalization parameter for 'gas of circle' model
+Rhatstar = 1;
 
 %%% ContourParameters contains the active contour, phase field and MRF
 %%% parameters of the GOC inflection point model
-MRGOCIPMParameters = computeMRGOCIPMparameters(LambdaTilde, Radius, Rhatstar);
+% MRGOCIPMParameters = computeMRGOCIPMparameters(LambdaTilde, Radius, Rhatstar);
+
+%%% ContourParameters contains the active contour, phase field and MRF
+%%% parameters of the GOC inflection point model
+MRGOCParameters = computeMRGOCparameters(AlphaTilde, LambdaTilde, Radius, Rhatstar);
 
 %%% PriorPhasefieldParameters contains the phase field GOC parameters
-PriorPhasefieldParameters = MRGOCIPMParameters(2);
+PriorPhasefieldParameters = MRGOCParameters(2);
 PriorPhasefieldParameters.discrete = 1;
 PriorPhasefieldParameters.marie = 1;
 
