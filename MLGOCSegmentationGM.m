@@ -78,8 +78,6 @@ newPhi = initPhi;
 means = zeros(maxIts,1);
 maxs = zeros(maxIts,1);
 
-% printf('Iteration ');
-
 %% Optimalization
 while (~converged)
     
@@ -187,13 +185,9 @@ for i = 1:layerNum
     
     D = parameters(i).D;
     
-%     [Nx, Ny, ~] = size(initPhi);
-    
     lambda = parameters(i).lambda;
     
     beta = parameters(i).beta;
-    
-%     alpha = parameters(i).alpha;
     
     discrete = parameters(i).discrete;
     
