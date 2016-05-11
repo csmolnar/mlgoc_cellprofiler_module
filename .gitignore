@@ -141,3 +141,4 @@ MeasureObjectIntensityExtended.m
 MeasureObjectNeighbors.m
 sample_sub.mexmaci
 sample_sub.mexw32
+IdentifyAndMeasureNucleoli.m
