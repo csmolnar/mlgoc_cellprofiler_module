@@ -484,8 +484,10 @@ for i = 1:length(ObjectNameList)
         end
     else % segmentation has multiple layers
         tempImage = LabelMatrixImage;
+        AllUniqueValues = unique(tempImage(:));
         
-        Zernike = zeros(max(tempImage(:)),size(Zernikeindex,1));
+%         Zernike = zeros(max(tempImage(:)),size(Zernikeindex,1));
+        Zernike = zeros(length(AllUniqueValues)-1,size(Zernikeindex,1));
         
         %         Basic = repmat( struct('Area',[],'Eccentricity',[],'Solidity',[], 'Extent',[], 'EulerNumber',[], ...
         %                     'MajorAxisLength',[], 'MinorAxisLength',[], 'Perimeter',[], 'Orientation',[]), max(tempImage(:)), 1);
@@ -494,6 +496,7 @@ for i = 1:length(ObjectNameList)
         Basic = [];
         
         for l=1:NumberOfLayers
+            
             LabelMatrixImage = tempImage(:,:,l);
             
             UniqueValues = unique(LabelMatrixImage);
@@ -519,8 +522,10 @@ for i = 1:length(ObjectNameList)
             accum_error = 0;
                     %}
                     %                     for Object = 1:NumObjects
-                    for Object = UniqueValues(2:end)'
+%                     for Object = UniqueValues(2:end)'
+                    for ObjectIdx = 2:length(UniqueValues)
                         %%% Calculate Zernike shape features
+                        Object = UniqueValues(ObjectIdx)
                         [xcord,ycord] = find(LabelMatrixImage==Object);
                         %%% It's possible for objects not to have any pixels,
                         %%% particularly tertiary objects (such as cytoplasm from
@@ -586,9 +591,9 @@ for i = 1:length(ObjectNameList)
                         
                         % Apply Zernike functions
                         try
-                            Zernike(Object,:) = squeeze(abs(sum(sum(repmat(BWpatch,[1 1 size(Zernikeindex,1)]).*Zf))))';
+                            Zernike(ObjectIdx,:) = squeeze(abs(sum(sum(repmat(BWpatch,[1 1 size(Zernikeindex,1)]).*Zf))))';
                         catch
-                            Zernike(Object,:) = 0;
+                            Zernike(ObjectIdx,:) = 0;
                             display(sprintf([ObjectName,' number ',num2str(Object),' was too big to be calculated. Batch Error! (this is included so it can be caught during batch processing without quitting out of the analysis)']))
                         end
                     end
