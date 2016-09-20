@@ -161,7 +161,7 @@ DiscardBorder = char(handles.Settings.VariableValues{CurrentModuleNum,13});
 %inputtypeVAR13 = popupmenu
 
 %textVAR14 = Discard overlapping objects if the Jaccard index of the overlapping area and the smaller object is over
-%defaultVAR10 = 0.0
+%defaultVAR14 = 0.0
 OverlapJIThreshold = str2num(char(handles.Settings.VariableValues{CurrentModuleNum,14}));
 
 %textVAR15 = What do you want to call the outlines of the corrected objects (optional)?
@@ -200,7 +200,7 @@ Rhatstar = 1;
 % MRGOCIPMParameters = computeMRGOCIPMparameters(LambdaTilde, Radius, Rhatstar);
 
 %%% ContourParameters contains the active contour, phase field and MRF
-%%% parameters of the GOC inflection point model
+%%% parameters of the GOC model
 MRGOCParameters = computeMRGOCparameters(AlphaTilde, LambdaTilde, Radius, Rhatstar);
 
 %%% PriorPhasefieldParameters contains the phase field GOC parameters
@@ -267,7 +267,7 @@ OptimizationParameters = struct('maxIts', MaxIterations, 'saveFreq', -1, 'tolera
 %%% model (Molnar et al., DICTA 2015)
 Kappa = 0.0;
 
-%%% Initialization can be Seeded, Neutral or Squared
+%%% Initialization can be Seeds (manual), Circular Seeds(Manual), Neutral or Squared
 if strcmp(Initialization, 'Seeds (manual)')
 %%% Seeds (manual) initialization is based on segmentation of previous
 %%% module.
@@ -292,11 +292,13 @@ elseif strcmp(Initialization, 'Neutral')
 %%% seeds are needed).
 
     if ~isempty(str2num(LayerNumString))
-        if (str2num(LayerNumString)<1)
+        if isnan(str2num(LayerNumString)) || (str2num(LayerNumString)<1)
             LayerNumber = 4;
         else
             LayerNumber = str2num(LayerNumString);
         end
+    else
+        LayerNumber = 4;
     end
     ExtendedInitialPhi = randn(ExtendedImageHeight,ExtendedImageWidth,LayerNumber) + ones(ExtendedImageHeight,ExtendedImageWidth,LayerNumber)*PriorPhasefieldParameters(1).alpha/PriorPhasefieldParameters(1).lambda;
     
@@ -418,9 +420,9 @@ end
 FinalLabelMatrixImage = bwlabelml(RemovedOverlappingObjects);
 
 %%% Calculating object perimeters
-Perimeters = zeros(size(RemovedOverlappingObjects)) > 0;
+Perimeters = zeros(size(FinalLabelMatrixImage)) > 0;
 for l = 1:LayerNumber
-    Perimeters(:,:,l) = bwperim( RemovedOverlappingObjects(:,:,l)>0 );
+    Perimeters(:,:,l) = bwperim( FinalLabelMatrixImage(:,:,l)>0 );
 end
 
 FinalOutline = any(Perimeters, 3);
@@ -431,15 +433,19 @@ FinalOutline = any(Perimeters, 3);
 
 %%% Saving Locations of the segmented objects.
 handles.Measurements.(ObjectName).LocationFeatures = {'CenterX', 'CenterY'};
-Centroids = zeros(max(MergedOverlappingObjects(:)),2);
+Centroids = zeros(max(FinalLabelMatrixImage(:)),2);
+
 for l=1:LayerNumber
-    tmp = RemovedOverlappingObjects(:,:,l);
+    tmp = FinalLabelMatrixImage(:,:,l);
     UniqueVales = unique(tmp);
     if ~isempty(UniqueVales) && length(UniqueVales)>1
         props = regionprops(tmp, 'Centroid');
         tmpCentroid = cat(1, props.Centroid);
         Centroids(UniqueVales(2:end)', :) = tmpCentroid(UniqueVales(2:end)', :);
     end
+end
+if isempty(Centroids)
+    Centroids = [0 0];
 end
 handles.Measurements.(ObjectName).Location(handles.Current.SetBeingAnalyzed) = { Centroids };
 

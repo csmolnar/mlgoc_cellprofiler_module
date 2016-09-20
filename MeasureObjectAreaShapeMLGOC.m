@@ -498,10 +498,8 @@ for i = 1:length(ObjectNameList)
         for l=1:NumberOfLayers
             
             LabelMatrixImage = tempImage(:,:,l);
-            
             UniqueValues = unique(LabelMatrixImage);
             
-            %             NumObjects = max(LabelMatrixImage(:));
             NumObjects = length(UniqueValues)-1;
             if  NumObjects > 0
                 
@@ -525,7 +523,7 @@ for i = 1:length(ObjectNameList)
 %                     for Object = UniqueValues(2:end)'
                     for ObjectIdx = 2:length(UniqueValues)
                         %%% Calculate Zernike shape features
-                        Object = UniqueValues(ObjectIdx)
+                        Object = UniqueValues(ObjectIdx);
                         [xcord,ycord] = find(LabelMatrixImage==Object);
                         %%% It's possible for objects not to have any pixels,
                         %%% particularly tertiary objects (such as cytoplasm from
@@ -591,9 +589,9 @@ for i = 1:length(ObjectNameList)
                         
                         % Apply Zernike functions
                         try
-                            Zernike(ObjectIdx,:) = squeeze(abs(sum(sum(repmat(BWpatch,[1 1 size(Zernikeindex,1)]).*Zf))))';
+                            Zernike(Object,:) = squeeze(abs(sum(sum(repmat(BWpatch,[1 1 size(Zernikeindex,1)]).*Zf))))';
                         catch
-                            Zernike(ObjectIdx,:) = 0;
+                            Zernike(Object,:) = 0;
                             display(sprintf([ObjectName,' number ',num2str(Object),' was too big to be calculated. Batch Error! (this is included so it can be caught during batch processing without quitting out of the analysis)']))
                         end
                     end
