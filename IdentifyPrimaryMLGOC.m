@@ -1306,24 +1306,27 @@ jaccardDist = 1 - jaccardIdx;
 
 end
 
-function [L, num] = bwlabelml(L)
+function [LML, num] = bwlabelml(L)
 % BWLABELML is an extension of BWLABEL function to multi dimensional binary
 % images.
 
 [ImageHeight, ImageWidth, LayerNumber] = size(L);
+LML = zeros(ImageHeight, ImageWidth, LayerNumber);
+MaxId = 0;
 
 for ll=1:LayerNumber
     
     SegmentedLayer = bwlabel( L(:,:,ll) > 0 );
     if ll==1
-        L(:,:,ll) = SegmentedLayer;
+        LML(:,:,ll) = SegmentedLayer;
     else
-        MaxId = max( reshape(L(:,:,ll-1), 1, []));
         SegmentedLayer(SegmentedLayer>0) = SegmentedLayer(SegmentedLayer>0) + MaxId;
-        L(:,:,ll) = SegmentedLayer;
+        LML(:,:,ll) = SegmentedLayer;
     end
+    MaxId = max(LML(:));
+    
 end
 
-num = max(L(:));
+num = MaxId;
 
 end

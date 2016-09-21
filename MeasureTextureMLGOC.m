@@ -473,9 +473,10 @@ for i = 1:6
         
     else % multi-layered segmented image
         tempImage = LabelMatrixImage;
+        AllUniqueValues = unique(tempImage(:));
         
         %%% Initialize measurement structure
-        Haralick = zeros(max(tempImage(:)), 13);
+        Haralick = [];
         HaralickFeatures = {'AngularSecondMoment',...
             'Contrast',...
             'Correlation',...
@@ -490,154 +491,168 @@ for i = 1:6
             'InfoMeas1',...
             'InfoMeas2'};
         
-        Gabor = zeros(max(tempImage(:)), 2);
+        Gabor = [];
         GaborFeatures    = {'GaborX',...
             'GaborY'};
+            
+        if strcmp(ObjectName,'Image')
+            ObjectCount = 1;
+        else
+            %%% Count objects
+            ObjectCount = length(AllUniqueValues)-1;
+        end
         
-        for l=1:NumberOfLayers
-            
-            LabelMatrixImage = tempImage(:,:,l);
-            UniqueValues = unique(LabelMatrixImage);
-            
-            %%% For the cases where the label matrix was produced from a cropped
-            %%% image, the sizes of the images will not be equal. So, we crop the
-            %%% LabelMatrix and try again to see if the matrices are then the
-            %%% proper size. Removes Rows and Columns that are completely blank.
-            if any(size(OrigImage) < size(LabelMatrixImage))
-                ColumnTotals = sum(LabelMatrixImage,1);
-                RowTotals = sum(LabelMatrixImage,2)';
-                warning off all
-                ColumnsToDelete = ~logical(ColumnTotals);
-                RowsToDelete = ~logical(RowTotals);
-                warning on all
-                drawnow
-                CroppedLabelMatrix = LabelMatrixImage;
-                CroppedLabelMatrix(:,ColumnsToDelete,:) = [];
-                CroppedLabelMatrix(RowsToDelete,:,:) = [];
-                clear LabelMatrixImage
-                LabelMatrixImage = CroppedLabelMatrix;
-                %%% In case the entire image has been cropped away, we store a single
-                %%% zero pixel for the variable.
-                if isempty(LabelMatrixImage)
-                    LabelMatrixImage = 0;
+        if ObjectCount > 0
+        
+            for l=1:NumberOfLayers
+
+                LabelMatrixImage = tempImage(:,:,l);
+                UniqueValues = unique(LabelMatrixImage);
+
+                %%% For the cases where the label matrix was produced from a cropped
+                %%% image, the sizes of the images will not be equal. So, we crop the
+                %%% LabelMatrix and try again to see if the matrices are then the
+                %%% proper size. Removes Rows and Columns that are completely blank.
+                if any(size(OrigImage) < size(LabelMatrixImage))
+                    ColumnTotals = sum(LabelMatrixImage,1);
+                    RowTotals = sum(LabelMatrixImage,2)';
+                    warning off all
+                    ColumnsToDelete = ~logical(ColumnTotals);
+                    RowsToDelete = ~logical(RowTotals);
+                    warning on all
+                    drawnow
+                    CroppedLabelMatrix = LabelMatrixImage;
+                    CroppedLabelMatrix(:,ColumnsToDelete,:) = [];
+                    CroppedLabelMatrix(RowsToDelete,:,:) = [];
+                    clear LabelMatrixImage
+                    LabelMatrixImage = CroppedLabelMatrix;
+                    %%% In case the entire image has been cropped away, we store a single
+                    %%% zero pixel for the variable.
+                    if isempty(LabelMatrixImage)
+                        LabelMatrixImage = 0;
+                    end
                 end
-            end
-            if any(size(OrigImage) ~= size(LabelMatrixImage))
-                error(['Image processing was canceled in the ', ModuleName, ' module. The size of the image you want to measure is not the same as the size of the image from which the ',ObjectName,' objects were identified.'])
-            end
-            
-            ObjectCount = length(UniqueValues)-1;
-            
-            if ObjectCount > 0
-                
-                % Adjust size of filter to size of objects in the image
-                % The centroids indicate where we should measure the Gabor
-                % filter output
-                tmp = regionprops(LabelMatrixImage,'Area','Centroid');
-                Areas = cat(1,tmp.Area);
-                MedianArea = median(Areas(UniqueValues(2:end)));
-                
-                % Round centroids and find linear index for them.
-                % The centroids are stored in [column,row] order.
-                Centroids = round(cat(1,tmp.Centroid));
-                
-                sigma = sqrt(MedianArea/pi)/3;  % Set width of filter to a third of the median radius
-                
-                % Use Gabor filters with three different frequencies
-                f = 1/(2*ScaleOfTexture);
-                
-                % Angle direction, filter along the x-axis and y-axis
-                theta = [0 pi/2];
-                
-                % Create kernel coordinates
-                KernelSize = round(2.5*sigma); % The filter size is set somewhat arbitrary
-                
-                [x,y] = meshgrid(-KernelSize:KernelSize,-KernelSize:KernelSize);
-                
-                % Apply Gabor filters and store filter outputs in the Centroid pixels
-                GaborFeatureNo = 1;
-%                 Gabor = zeros(ObjectCount,length(f)*length(theta));                              % Initialize measurement matrix
-%                 Gabor = zeros(1,length(f)*length(theta));
-                for m = 1:length(f)
-                    for n = 1:length(theta)
-                        
-                        % Calculate Gabor filter kernel
-                        % Scale by 1000 to get measurements in a convenient range
-                        g = 1000*1/(2*pi*sigma^2)*exp(-(x.^2 + y.^2)/(2*sigma^2)).*exp(2*pi*sqrt(-1)*f(m)*(x*cos(theta(n))+y*sin(theta(n))));
-                        g = g - mean(g(:));           % Important that the filters has DC zero, otherwise they will be sensitive to the intensity of the image
-                        
-                        
-                        % Center the Gabor kernel over the centroid and calculate the filter response.
-                        
-                        for k = UniqueValues(2:end)'
-                            %%% It's possible for objects not to have any pixels,
-                            %%% particularly tertiary objects (such as cytoplasm from
-                            %%% cells the exact same size as their nucleus).
-                            if Areas(k) == 0,
-                                Gabor(k, GaborFeatureNo) = 0;
-                                continue;
+                if any(size(OrigImage) ~= size(LabelMatrixImage))
+                    error(['Image processing was canceled in the ', ModuleName, ' module. The size of the image you want to measure is not the same as the size of the image from which the ',ObjectName,' objects were identified.'])
+                end
+
+                ObjectCount = length(UniqueValues)-1;
+
+                if ObjectCount > 0
+
+                    % Adjust size of filter to size of objects in the image
+                    % The centroids indicate where we should measure the Gabor
+                    % filter output
+                    tmp = regionprops(LabelMatrixImage,'Area','Centroid');
+                    Areas = cat(1,tmp.Area);
+                    MedianArea = median(Areas(UniqueValues(2:end)));
+
+                    % Round centroids and find linear index for them.
+                    % The centroids are stored in [column,row] order.
+                    Centroids = round(cat(1,tmp.Centroid));
+
+                    sigma = sqrt(MedianArea/pi)/3;  % Set width of filter to a third of the median radius
+
+                    % Use Gabor filters with three different frequencies
+                    f = 1/(2*ScaleOfTexture);
+
+                    % Angle direction, filter along the x-axis and y-axis
+                    theta = [0 pi/2];
+
+                    % Create kernel coordinates
+                    KernelSize = round(2.5*sigma); % The filter size is set somewhat arbitrary
+
+                    [x,y] = meshgrid(-KernelSize:KernelSize,-KernelSize:KernelSize);
+
+                    % Apply Gabor filters and store filter outputs in the Centroid pixels
+                    GaborFeatureNo = 1;
+    %                 Gabor = zeros(ObjectCount,length(f)*length(theta));                              % Initialize measurement matrix
+    %                 Gabor = zeros(1,length(f)*length(theta));
+                    for m = 1:length(f)
+                        for n = 1:length(theta)
+
+                            % Calculate Gabor filter kernel
+                            % Scale by 1000 to get measurements in a convenient range
+                            g = 1000*1/(2*pi*sigma^2)*exp(-(x.^2 + y.^2)/(2*sigma^2)).*exp(2*pi*sqrt(-1)*f(m)*(x*cos(theta(n))+y*sin(theta(n))));
+                            g = g - mean(g(:));           % Important that the filters has DC zero, otherwise they will be sensitive to the intensity of the image
+
+
+                            % Center the Gabor kernel over the centroid and calculate the filter response.
+
+                            for k = UniqueValues(2:end)'
+                                %%% It's possible for objects not to have any pixels,
+                                %%% particularly tertiary objects (such as cytoplasm from
+                                %%% cells the exact same size as their nucleus).
+                                if Areas(k) == 0,
+                                    Gabor(k, GaborFeatureNo) = 0;
+                                    continue;
+                                end
+
+                                xmin1 = Centroids(k,1)-KernelSize;
+                                xmax1 = Centroids(k,1)+KernelSize;
+                                ymin1 = Centroids(k,2)-KernelSize;
+                                ymax1 = Centroids(k,2)+KernelSize;
+                                xmin2 = max(1,xmin1);
+                                xmax2 = min(size(OrigImage,2),xmax1);
+                                ymin2 = max(1,ymin1);
+                                ymax2 = min(size(OrigImage,1),ymax1);
+
+                                % Cut patch
+                                p = OrigImage(ymin2:ymax2,xmin2:xmax2);
+
+                                % Pad with zeros if necessary to match the filter kernel size
+                                if xmin1 < xmin2
+                                    p = [zeros(size(p,1),xmin2 - xmin1) p];
+                                end
+                                if xmax1 > xmax2
+                                    p = [p zeros(size(p,1),xmax1 - xmax2)];
+                                end
+
+                                if ymin1 < ymin2
+                                    p = [zeros(ymin2 - ymin1,size(p,2));p];
+                                end
+                                if ymax1 > ymax2
+                                    p = [p;zeros(ymax1 - ymax2,size(p,2))];
+                                end
+
+                                % Calculate the filter output
+                                Gabor(k,GaborFeatureNo) = abs(sum(sum(g.*p)));
                             end
-                            
-                            xmin1 = Centroids(k,1)-KernelSize;
-                            xmax1 = Centroids(k,1)+KernelSize;
-                            ymin1 = Centroids(k,2)-KernelSize;
-                            ymax1 = Centroids(k,2)+KernelSize;
-                            xmin2 = max(1,xmin1);
-                            xmax2 = min(size(OrigImage,2),xmax1);
-                            ymin2 = max(1,ymin1);
-                            ymax2 = min(size(OrigImage,1),ymax1);
-                            
-                            % Cut patch
-                            p = OrigImage(ymin2:ymax2,xmin2:xmax2);
-                            
-                            % Pad with zeros if necessary to match the filter kernel size
-                            if xmin1 < xmin2
-                                p = [zeros(size(p,1),xmin2 - xmin1) p];
-                            end
-                            if xmax1 > xmax2
-                                p = [p zeros(size(p,1),xmax1 - xmax2)];
-                            end
-                            
-                            if ymin1 < ymin2
-                                p = [zeros(ymin2 - ymin1,size(p,2));p];
-                            end
-                            if ymax1 > ymax2
-                                p = [p;zeros(ymax1 - ymax2,size(p,2))];
-                            end
-                            
-                            % Calculate the filter output
-                            Gabor(k,GaborFeatureNo) = abs(sum(sum(g.*p)));
+                            %
+                            GaborFeatureNo = GaborFeatureNo + 1;
                         end
-                        %
-                        GaborFeatureNo = GaborFeatureNo + 1;
                     end
-                end
-                
-                %%% Get Haralick features.
-                %%% Have to loop over the objects
-                [sr sc] = size(LabelMatrixImage);
-                props = regionprops(LabelMatrixImage,'PixelIdxList');   % Get pixel indexes in a fast way
-                for Object = UniqueValues(2:end)'
-                    if ~isempty(props(Object))
-                        %%% Cut patch so that we don't have to deal with entire image
-                        [r,c] = ind2sub([sr sc],props(Object).PixelIdxList);
-                        rmax = min(sr,max(r));
-                        rmin = max(1,min(r));
-                        cmax = min(sc,max(c));
-                        cmin = max(1,min(c));
-                        BWim   = LabelMatrixImage(rmin:rmax,cmin:cmax) == Object;
-                        Greyim = OrigImage(rmin:rmax,cmin:cmax);
-                        %%% Get Haralick features
-                        Haralick(Object,:) = CalculateHaralick(Greyim,BWim,ScaleOfTexture);
+
+                    %%% Get Haralick features.
+                    %%% Have to loop over the objects
+                    [sr sc] = size(LabelMatrixImage);
+                    props = regionprops(LabelMatrixImage,'PixelIdxList');   % Get pixel indexes in a fast way
+                    for Object = UniqueValues(2:end)'
+                        if ~isempty(props(Object))
+                            %%% Cut patch so that we don't have to deal with entire image
+                            [r,c] = ind2sub([sr sc],props(Object).PixelIdxList);
+                            rmax = min(sr,max(r));
+                            rmin = max(1,min(r));
+                            cmax = min(sc,max(c));
+                            cmin = max(1,min(c));
+                            BWim   = LabelMatrixImage(rmin:rmax,cmin:cmax) == Object;
+                            Greyim = OrigImage(rmin:rmax,cmin:cmax);
+                            %%% Get Haralick features
+                            Haralick(Object,:) = CalculateHaralick(Greyim,BWim,ScaleOfTexture);
+                        end
                     end
+
+                else
+    %                 Haralick = zeros(1,13);
+    %                 Gabor = zeros(1,2);
                 end
-                
-            else
-%                 Haralick = zeros(1,13);
-%                 Gabor = zeros(1,2);
+
+
             end
-            
-            
+        
+        else
+            Haralick = zeros(1,13);
+            Gabor = zeros(1,2);
         end
         
         %%% Save measurements
