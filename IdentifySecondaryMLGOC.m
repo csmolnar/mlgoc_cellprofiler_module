@@ -256,12 +256,6 @@ SaveOutlines = char(handles.Settings.VariableValues{CurrentModuleNum,11});
 TestMode = char(handles.Settings.VariableValues{CurrentModuleNum,12});
 %inputtypeVAR12 = popupmenu
 
-%textVAR13 = Discard overlapping cells?
-%choiceVAR13 = Yes
-%choiceVAR13 = No
-DiscardOverlapping = char(handles.Settings.VariableValues{CurrentModuleNum,13});
-%inputtypeVAR13 = popupmenu
-
 %%%VariableRevisionNumber = 4
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -349,7 +343,6 @@ if NumberOfLayers==1
         ThresholdedOrigImage = logical(BinaryInputImage);
     end
     Threshold = mean(Threshold(:));       % Use average threshold downstreams
-    
     
     for IdentChoiceNumber = 1:length(IdentChoiceList)
         
@@ -866,7 +859,8 @@ else
     %%% that are smaller than a certain size.  This image
     %%% will be used as markers to segment the secondary objects with this
     %%% module.  Checks first to see whether the appropriate image exists.
-    PrelimPrimaryLabelMatrixImage = CPretrieveimage(handles,['SmallRemovedSegmented', PrimaryObjectName],ModuleName,'DontCheckColor','DontCheckScale',size(OrigImage));
+%     PrelimPrimaryLabelMatrixImage = CPretrieveimage(handles,['SmallRemovedSegmented', PrimaryObjectName],ModuleName,'DontCheckColor','DontCheckScale',size(OrigImage));
+    PrelimPrimaryLabelMatrixImage = CPretrieveimage(handles,['Segmented', PrimaryObjectName],ModuleName,'DontCheckColor','DontCheckScale',size(OrigImage));
     
     %%% Retrieves the label matrix image that contains the edited primary
     %%% segmented objects which will be used to weed out which objects are
@@ -973,7 +967,7 @@ else
                     FinalSecondaryLabels = map(FinalSecondaryLabels+1);
                     
                 elseif strcmp(IdentChoice(12),'B')
-                    
+                    error( 'Distance - B method is only available for single layer input! %s is multi-layered data.', PrimaryObjectName );
                 end
                 
                 
@@ -984,9 +978,9 @@ else
                 %             LookUpColumn(1)=0;
                 %             FinalLabelMatrixImage = LookUpColumn(RelabeledDilatedPrelimSecObjectImage+1);
             elseif strcmp(IdentChoice,'Propagation')
-                
+                error( 'Propagation method is only available for single layer input! %s is multi-layered data.', PrimaryObjectName);
             elseif strcmp(IdentChoice,'Watershed')
-                
+                error( 'Watershed method is only available for single layer input! %s is multi-layered data.', PrimaryObjectName );
             end
         end
     else
@@ -994,7 +988,6 @@ else
     end
     
     ObjectOutlinesOnOrigImage = OrigImage;
-    
     
     Perim = zeros(ImageHeight, ImageWidth, NumberOfLayers)>0;
     for l=1:NumberOfLayers
@@ -1022,7 +1015,6 @@ else
     %%%%%%%%%%%%%%%%%%%%%%%
     %%% DISPLAY RESULTS %%%
     %%%%%%%%%%%%%%%%%%%%%%%
-    
     
     ThisModuleFigureNumber = handles.Current.(['FigureNumberForModule',CurrentModule]);
     if any(findobj == ThisModuleFigureNumber)
