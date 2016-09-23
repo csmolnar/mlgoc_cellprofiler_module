@@ -868,29 +868,12 @@ else
     %%% limits. Checks first to see whether the appropriate image exists.
     EditedPrimaryLabelMatrixImage = CPretrieveimage(handles,['Segmented', PrimaryObjectName],ModuleName,'DontCheckColor','DontCheckScale',size(OrigImage));
     
-    
-    %%% Storing where are overlapping objects
-    OverlapMap = zeros(ImageHeight, ImageWidth);
-    BgIdx = find(sum(PrelimPrimaryLabelMatrixImage>0, 3) == 0);
-    SingleIdx = find(sum(PrelimPrimaryLabelMatrixImage>0, 3) == 1);
-    OverlapIdx = find(sum(PrelimPrimaryLabelMatrixImage>0, 3) > 1);
-    OverlapMap(BgIdx) = 0;
-    OverlapMap(SingleIdx) = 1;
-    OverlapMap(OverlapIdx) = 2;
-    
-    %     tempImage = LabelMatrixImage;
-    %
-    %     for indLayer = 1:NumberOfLayers
-    %         tempImage(OverlapIdx+(indLayer-1)*ImageHeight*ImageWidth) = 0;
-    %     end
     tempImage = PrelimPrimaryLabelMatrixImage;
-%     for ll = 1:NumberOfLayers
-%         tempImage(:,:,ll) = tempImage(:,:,ll).*(OverlapMap==1);
-%     end
+
+    AllUniqueVales = unique(tempImage);
+    ObjectCount = length(AllUniqueVales)-1;
     
-    %     PrelimPrimaryLabelMatrixImage = tempImage;
-    
-    if max(PrelimPrimaryLabelMatrixImage(:))>0
+    if ObjectCount>0
         
         for IdentChoiceNumber = 1:length(IdentChoiceList)
             
@@ -898,85 +881,40 @@ else
             
             if strncmp(IdentChoice,'Distance',8)
                 if strcmp(IdentChoice(12),'N')
-                    %%% Creates the structuring element using the user-specified size.
-                    %             StructuringElement = strel('disk', DistanceToDilate);
-                    %             %%% Dilates the preliminary label matrix image (edited for small only).
-                    %             DilatedPrelimSecObjectLabelMatrixImage = imdilate(PrelimPrimaryLabelMatrixImage, StructuringElement);
-                    %             %%% Converts to binary.
-                    %             DilatedPrelimSecObjectBinaryImage = im2bw(DilatedPrelimSecObjectLabelMatrixImage,.5);
-                    %             %%% Computes nearest neighbor image of nuclei centers so that the dividing
-                    %             %%% line between secondary objects is halfway between them rather than
-                    %             %%% favoring the primary object with the greater label number.
                     
-                    [dist, Labels] = bwdist(full(PrelimPrimaryLabelMatrixImage>0)); %#ok We want to ignore MLint error checking for this line.
-                    DilatedPrelimSecObjectBinaryImage = (dist < DistanceToDilate);
+                    FinalSecondaryLabels = zeros(ImageHeight, ImageWidth, NumberOfLayers);
                     
-                    ObjectsUnion = any(tempImage>0, 3);
-                    
-%                     ObjectsUnion(OverlapIdx) = 0;
-                    
-                    DistanceTransformedImage = bwdist(~ObjectsUnion);
-                    
-                    MaximaImage = zeros(size(DistanceTransformedImage));
-                    
-                    props = regionprops(tempImage, 'Centroid');
-                    %                 props = regionprops(tempImage, 'Centroid');
-                    Centroids = round(cat(1, props.Centroid));
-                    
-                    r = Centroids(:,2);
-                    c = Centroids(:,1);
-                    
-                    indices = sub2ind([size(PrelimPrimaryLabelMatrixImage,1), size(PrelimPrimaryLabelMatrixImage,2)], r, c);
-                    MaximaImage(indices) = 1;
-                    
-                    Overlaid = imimposemin(-DistanceTransformedImage,MaximaImage);
-                    
-                    L = watershed(Overlaid);
-                    
-                    ObjectsUnion2 = any(PrelimPrimaryLabelMatrixImage, 3);
-                    L(~ObjectsUnion2) = 0;
-                    
-                    [dist1, labels1] = bwdist(L);
-                    %                 ExpandedRelabeledDilatedPrelimSecObjectImage1 = L(labels1);
-                    
-                    DilatedPrelimSecObjectBinaryImage1 = (dist1 < DistanceToDilate);
-                    %                 RelabeledDilatedPrelimSecObjectImage1 = zeros(size(ExpandedRelabeledDilatedPrelimSecObjectImage1));
-                    %                 RelabeledDilatedPrelimSecObjectImage1(DilatedPrelimSecObjectBinaryImage1) = ExpandedRelabeledDilatedPrelimSecObjectImage1(DilatedPrelimSecObjectBinaryImage1);
-                    
-                    MaximaImage2 = L>0;
-                    Overlaid2 = imimposemin(-DistanceTransformedImage,MaximaImage2);
-                    L2 = uint16( watershed(Overlaid2) );
-                    L2 = L2.*uint16(DilatedPrelimSecObjectBinaryImage1);
-                    
-                    L3 = recolor(L, L2);
-                    
-                    FinalSecondaryLabels = zeros(ImageHeight,ImageWidth,NumberOfLayers);
-                    
-                    for Object = 1:max(L3(:))
-                        actLayer = Centroids(Object, 3);
-                        actLabel = L3(Centroids(Object, 2), Centroids(Object,1));
-                        actSecondaryIdx = find(L3==actLabel);
-                        %                     figure; imagesc(L2==actLabel); title(num2str(Object,'%d. object'));
-                        FinalSecondaryLabels(actSecondaryIdx + (actLayer-1)*ImageHeight*ImageWidth) = Object;
+                    for ll=1:NumberOfLayers
+                        PrelimPrimaryLabelMatrixImage = squeeze(tempImage(:,:,ll));
+                        EditedPrimaryLabelMatrixImage = squeeze(tempImage(:,:,ll));
+                        [dist, Labels] = bwdist( full( PrelimPrimaryLabelMatrixImage>0) ); %#ok We want to ignore MLint error checking for this line.
+                        DilatedPrelimSecObjectBinaryImage = dist < DistanceToDilate;
+                        %%% Remaps labels in Labels to labels in PrelimPrimaryLabelMatrixImage.
+                        if max(Labels(:)) == 0,
+                            Labels = ones(size(Labels));
+                        end
+                        ExpandedRelabeledDilatedPrelimSecObjectImage = PrelimPrimaryLabelMatrixImage(Labels);
+                        %%% Removes the background pixels (those not labeled as foreground in the
+                        %%% DilatedPrelimSecObjectBinaryImage). This is necessary because the
+                        %%% nearest neighbor function assigns *every* pixel to a nucleus, not just
+                        %%% the pixels that are part of a secondary object.
+                        RelabeledDilatedPrelimSecObjectImage = zeros(size(ExpandedRelabeledDilatedPrelimSecObjectImage));
+                        RelabeledDilatedPrelimSecObjectImage(DilatedPrelimSecObjectBinaryImage) = ExpandedRelabeledDilatedPrelimSecObjectImage(DilatedPrelimSecObjectBinaryImage);
+                        %drawnow
+                        
+                        %%% Removes objects that are not in the edited EditedPrimaryLabelMatrixImage.
+                        
+                        Map = sparse(1:prod(size(PrelimPrimaryLabelMatrixImage)), PrelimPrimaryLabelMatrixImage(:)+1, EditedPrimaryLabelMatrixImage(:));
+                        LookUpColumn = full(max(Map,[], 1));
+                        LookUpColumn(1)=0;
+                        FinalSecondaryLabels(:,:,ll) = LookUpColumn(RelabeledDilatedPrelimSecObjectImage+1);
+                        
                     end
-                    
-                    map = 0:max(FinalSecondaryLabels(:));
-                    RemovedObjectIdx = handles.Pipeline.(['RemovedObjectIdx' PrimaryObjectName]);
-                    map(RemovedObjectIdx) = 0;
-                    
-                    FinalSecondaryLabels = map(FinalSecondaryLabels+1);
                     
                 elseif strcmp(IdentChoice(12),'B')
                     error( 'Distance - B method is only available for single layer input! %s is multi-layered data.', PrimaryObjectName );
                 end
                 
-                
-                %%% Removes objects that are not in the edited EditedPrimaryLabelMatrixImage.
-                %
-                %             Map = sparse(1:prod(size(PrelimPrimaryLabelMatrixImage)), PrelimPrimaryLabelMatrixImage(:)+1, EditedPrimaryLabelMatrixImage(:));
-                %             LookUpColumn = full(max(Map,[], 1));
-                %             LookUpColumn(1)=0;
-                %             FinalLabelMatrixImage = LookUpColumn(RelabeledDilatedPrelimSecObjectImage+1);
             elseif strcmp(IdentChoice,'Propagation')
                 error( 'Propagation method is only available for single layer input! %s is multi-layered data.', PrimaryObjectName);
             elseif strcmp(IdentChoice,'Watershed')
@@ -1000,7 +938,7 @@ else
     
     PrimaryPerim = zeros(ImageHeight, ImageWidth, NumberOfLayers)>0;
     for l=1:NumberOfLayers
-        PrimaryPerim(:,:,l) = bwperim(PrelimPrimaryLabelMatrixImage(:,:,l)>0);
+        PrimaryPerim(:,:,l) = bwperim(tempImage(:,:,l)>0);
     end
     
     %%% Union of all contours of all layers

@@ -484,7 +484,7 @@ for i = 1:length(ObjectNameList)
         end
     else % segmentation has multiple layers
         tempImage = LabelMatrixImage;
-        AllUniqueValues = unique(tempImage(:));
+        AllUniqueValues = unique(tempImage);
         
 %         Zernike = zeros(max(tempImage(:)),size(Zernikeindex,1));
         Zernike = zeros(length(AllUniqueValues)-1,size(Zernikeindex,1));
