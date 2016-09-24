@@ -18,8 +18,8 @@ function handles = IdentifyPrimaryMLGOC(handles)
 % is an additive model assuming intensity of overlapping objects is
 % proportional to the number of objects.
 % 
-% Molnar, C., Kato, Z., Jermyn, I. (2015). A New Model for the Segmentation
-% of Multiple, Overlapping, Near-Circular Objects. DICTA 2015.
+% Molnar, C., et. al. Accurate Morphology Preserving Segmentation of
+% Overlapping Cells based on Active Contours. SciRep 2016.
 %
 % Settings:
 %
@@ -48,9 +48,7 @@ function handles = IdentifyPrimaryMLGOC(handles)
 % Weight of data term (positive real number):
 % Relative weight of image model compared to the geometric term. Lower
 % values force the model more circular objects, higher values effect the
-% model fits more to image data. NOTE: values close to zero result empty
-% segmentation because of the 'inflection point' parameter setting of the '
-% circles model.
+% model fits more to image data.
 %
 % Type of initialization:
 % * Seeds (manual) - This initialization is based on the previous module's
@@ -75,17 +73,13 @@ function handles = IdentifyPrimaryMLGOC(handles)
 % objects that are not fully within the field of view (because, for
 % example, the area or the shape would not be accurate).
 % 
-% Discard overlapping objects:
-% You can choose to discard objects that have overlapping with another
-% object. You can leave out cells if you don't want to make possible
-% inaccurate measurement over areas belonging multiple objects. 
-% 
 % See also Identify primary Identify Secondary modules.
 %
 % CellProfiler is distributed under the GNU General Public License.
 % See the accompanying file LICENSE for details.
 %
 % Developed by Csaba Molnar 2015.
+% 
 %
 
 % $Revision: 1017 $
@@ -264,7 +258,7 @@ Tolerance  = 0.00001;
 OptimizationParameters = struct('maxIts', MaxIterations, 'saveFreq', -1, 'tolerance', Tolerance);
 
 %%% Kappa is the weight of overlap penalty - not used with the adaptive
-%%% model (Molnar et al., DICTA 2015)
+%%% data model (Molnar et al., DICTA 2015)
 Kappa = 0.0;
 
 %%% Initialization can be Seeds (manual), Circular Seeds(Manual), Neutral or Squared
@@ -396,7 +390,7 @@ end
 EmbeddedRemovedObjects = removeSmallObjects(EmbeddedRemovedObjects, Radius);
 
 %%% Merge objects with Jaccard index over 0.8
-MergedOverlappingObjects = mergeOverlappingObjects( EmbeddedRemovedObjects, 0.8 );
+MergedOverlappingObjects = mergeOverlappingObjects( EmbeddedRemovedObjects, 0.8, Radius );
 
 %%% From now we have the final objects satisfying size criteria and avoid
 %%% degenerative cases; stored to find secondary objects
@@ -404,7 +398,7 @@ UneditedSegmentedImage = MergedOverlappingObjects;
 
 %%% Remove overlapping objects
 if OverlapJIThreshold>0.0
-    [RemovedOverlappingObjects, RemovedOIdx] = removeOverlappingObjectsOverJIThreshold( MergedOverlappingObjects, OverlapJIThreshold );
+    [RemovedOverlappingObjects, RemovedOIdx] = removeOverlappingObjectsOverJIThreshold( MergedOverlappingObjects, OverlapJIThreshold, Radius );
 else
     RemovedOverlappingObjects = MergedOverlappingObjects;
     RemovedOIdx = [];
@@ -512,8 +506,8 @@ end
 %%%%%%%%%%%%%%%%%%%%
 
 function extIm = extendImage(image, width, mode)
-%EXTENDIM gives a padding to an image
-%   EXTENDIM(IMAGE, WIDTH, MODE) returns matrix IMAGE padded with a border of
+%EXTENDIMAGE gives a padding to an image
+%   EXTENDIMAGE(IMAGE, WIDTH, MODE) returns matrix IMAGE padded with a border of
 %   WIDTH. MODE can be 'mirror', 'torus' or a real number value.
 
 [h, w, d] = size(image);
@@ -522,18 +516,16 @@ extIm = zeros(h+2*width, w+2*width, d);
 switch mode
     case 'mirror' % the border of the image is mirrored
         for i=1:d
-            
             extIm(1:width,1:width,i) = rot90(image(1:width,1:width,i),2); %nw
             extIm(1:width,width+w+1:end,i) =rot90(image(1:width,w-width+1:end,i),2); %ne
             extIm(width+h+1:end,1:width,i) = rot90(image(h-width+1:end,1:width,i),2); %dw
             extIm(width+h+1:end,width+w+1:end,i) = rot90(image(h-width+1:end,w-width+1:end,i),2); %de
             
-            
-            
             extIm(1:width,width+1:width+w,i) = flipud(image(1:width,:,i)); % top
             extIm(width+h+1:end,width+1:width+w,i) = flipud(image(h-width+1:end,:,i)); %bottom
             extIm(1+width:h+width,1:width,i) = fliplr(image(:,1:width,i)); % left
             extIm(1+width:h+width,width+w+1:end,i) = fliplr(image(:,w-width+1:end,i)); % right
+            
         end
     case 'torus' % the border of the image is cut from the opposite border like a torus
         for i=1:d
@@ -552,10 +544,6 @@ switch mode
             extIm = extIm + mode;
         end
 end
-
-% for i=1:d
-%     extIm(width+1:width+h,width+1:width+w,i) = image(:,:,i); %original
-% end
 
 extIm(width+1:width+h,width+1:width+w,:) = image;
 
@@ -582,19 +570,15 @@ for i=1:num
     
     l=1; 
     minOverlap = h*w;
-    %     minIndex = 1;
     ready = 0;
     while l<=layerNum && ~ready
         overlap = numel( find( initMLPhi(:,:,l) & imdilate(objLayer,SE) ) );
-        if overlap == 0
-            %             'no overlap';
+        if overlap == 0 % no overlap
             initMLPhi(:,:,l) = initMLPhi(:,:,l) | objLayer;
             ready = 1;
         else
             if overlap<minOverlap
-                %                 'smaller overlap';
                 minOverlap = overlap;
-                %                 minIndex = l;
             end
         end
         
@@ -636,6 +620,7 @@ end
 end
 
 function [colors, pc] = patchColorSelect( GrayscaleObjects, ncolor )
+% map coloring algorithm
 
 props = regionprops(GrayscaleObjects, 'Centroid');
 centers = cat(1, props.Centroid);
@@ -696,7 +681,6 @@ end
 function [L, num] = splitObjects(L, num, radius)
 %%% SPLITOBJECTS slices the objects over a specific size
 
-%     'splitobjects started..'
 maxNum = num;
 radius = uint32(radius);
 for i=1:num
@@ -789,20 +773,13 @@ if h~=hi || w~=wi
     error('Image and phi must have same size!')
 end
 
-%     SE = strel('disk',1);
-
 resPhi = zeros(size(MLPhi));
 edgesPhi = zeros(size(MLPhi))>0;
 
-%     figure;
 for i=1:layerNum
     resPhi(:,:,i) = double(MLPhi(:,:,i) > threshold(i));
-    
-    %       edgesPhi(:,:,i) = xor(imerode(resPhi(:,:,i),SE),resPhi(:,:,i));
     edgesPhi(:,:,i) = bwperim(resPhi(:,:,i));
 end
-
-%     pause;
 
 sumLayers = sum(edgesPhi, 3);
 sumLayersIndex = sumLayers>0;
@@ -833,9 +810,7 @@ for i = 1:layerNum
     contourImage(:,:,3) = contourImage(:,:,3) + colors(mod(i, size(colors,1)),3)*(edgesPhi(:,:,i)./sumLayers);
 end
 
-
 contours = edgesPhi>0;
-%     contourImage(isnan(contourImage)) = contourLayer;
 
 end
 
@@ -850,7 +825,6 @@ if layerNum < 2
     layerNum = 2;
 end
 
-% bgSquare = zeros(2*d, 2*d) - 1;
 bgSquare = zeros(2*d, 2*d) ;
 fgSquare = zeros(2*d, 2*d) + 1;
 
@@ -881,7 +855,6 @@ if layerNum==2
     
 else
     
-    %     tile = zeros(2*d, 2*d*layerNum) - 1;
     tile = zeros(2*d, 2*d*layerNum) ;
     tile(:, 1:2*d) = 1;
     
@@ -889,7 +862,6 @@ else
     
     bigTileRow1 = repmat( tile, 1, xSize+2);
     
-    %     bigTileRow2 = zeros(size(bigTileRow1)) - 1;
     bigTileRow2 = zeros(size(bigTileRow1)) ;
     
     bigTileRow2(:, 3*d+1:end) = bigTileRow1( :, 1:end-3*d );
@@ -901,7 +873,6 @@ else
     initMLPhi = zeros(Nx, Ny, layerNum);
     
     for i=1:layerNum
-        %         Nx+(i-1)*2*d
         initMLPhi(:,:,i) = patternAll(1:Nx, 1+(i-1)*2*d:Ny+(i-1)*2*d);
     end
     
@@ -922,11 +893,9 @@ circle = uint8(sqrt((x-Radius-0.5).^2+(y-Radius-0.5).^2) <= Radius);
 LabeledInitialPhi = bwlabelml(InitialPhi);
 
 props = regionprops(LabeledInitialPhi, 'Centroid');
-% Centroids = cat(1, props.Centroid);
 
 for i=1:length(props)
     
-%     [x0, y0, l0] = props(i).Centroid;
     x0 = round(props(i).Centroid(1));
     y0 = round(props(i).Centroid(2));
     l0 = round(props(i).Centroid(3));
@@ -936,15 +905,9 @@ end
 
 end
 
-function [OverlappingObjectIndexes, OOL] = getOverlappingObjectIndexes( SegmentedLayers )
+function [OverlappingObjectIndexes, OOL, OOCentroids] = getOverlappingObjectIndexes( SegmentedLayers )
 %%% GETOVERLAPPINGOBJECTINDEXES collects the indices of objects that has
 %%% any overlap with each other
-
-%%% Storing where are overlapping objects
-% OverlapMap = zeros(ImageHeight, ImageWidth);
-% BgIdx = find(sum(SegmentedLayers>0, 3) == 0);
-% SingleIdx = find(sum(SegmentedLayers>0, 3) == 1);
-% OverlapIdx = find(sum(SegmentedLayers>0, 3) > 1);
 
 [ImageHeight, ImageWidth, LayerNumber] = size(SegmentedLayers);
 
@@ -959,6 +922,7 @@ OverlapMap(OverlapIdx) = 2;
 
 OverlappingObjectIndexes = [];
 OOL = [];
+OOCentroids = [];
 indDOOI = 0;
 
 SE = strel('disk',1,4);
@@ -969,8 +933,8 @@ for ll=1:LayerNumber
     
     if ~isempty(UniqueValues) && length(UniqueValues)>1
         for Object = UniqueValues(2:end)'
-            
-            hitTest = (imerode(SegmentedLayers(:,:,ll)==Object, SE)) & (OverlapMap==2);
+            ObjectOnLayer = SegmentedLayers(:,:,ll)==Object;
+            hitTest = (imerode(ObjectOnLayer, SE)) & (OverlapMap==2);
             
             %%% check the object has overlap area
             if sum(hitTest(:))>0
@@ -979,6 +943,8 @@ for ll=1:LayerNumber
                 OverlappingObjectIndexes(indDOOI) = Object;
                 OOL(indDOOI) = ll;
                 
+                props = regionprops(ObjectOnLayer,'Centroid');
+                OOCentroids = [OOCentroids; props.Centroid];
             end
         end
     end
@@ -1013,7 +979,8 @@ for ll=1:LayerNumber
                 if lll==ll
                     continue;
                 else
-                    if (or( RemovedEmbeddedObjecs(:,:,ll)==Object, RemovedEmbeddedObjecs(:,:,lll)>0 )) == (RemovedEmbeddedObjecs(:,:,lll)>0)
+                    if isequal( or(RemovedEmbeddedObjecs(:,:,ll)==Object, RemovedEmbeddedObjecs(:,:,lll)>0), RemovedEmbeddedObjecs(:,:,lll)>0)
+                        
                         indDEOI = indDEOI + 1;
                         DiscardEmbeddedObjIdx(indDEOI) = Object;
                     end
@@ -1028,19 +995,6 @@ for indO=1:length(DiscardEmbeddedObjIdx)
     RemovedEmbeddedObjecs(RemovedEmbeddedObjecs==DiscardEmbeddedObjIdx(indO)) = 0;
 end
 
-% for ll=1:LayerNumber
-%     
-%     SegmentedLayer = bwlabel(RemovedEmbeddedObjecs(:,:,ll));
-%     if ll==1
-%         %         MaxId = max( reshape(SegmentedLayer,1,[]) );
-%         RemovedEmbeddedObjecs(:,:,ll) = SegmentedLayer;
-%     else
-%         MaxId = max( reshape(RemovedEmbeddedObjecs(:,:,ll-1), 1, []) );
-%         SegmentedLayer(SegmentedLayer>0) = SegmentedLayer(SegmentedLayer>0) + MaxId;
-%         RemovedEmbeddedObjecs(:,:,ll) = SegmentedLayer;
-%     end
-% end
-
 [RemovedEmbeddedObjecs, num] = bwlabelml(RemovedEmbeddedObjecs);
 % end
 
@@ -1052,13 +1006,13 @@ display([num2str(length(DiscardEmbeddedObjIdx)) ' embedded objects were removed.
 
 end
 
-function MergedOverlappingObjects = mergeOverlappingObjects( SegmentedLayers, JIThreshold)
+function MergedOverlappingObjects = mergeOverlappingObjects( SegmentedLayers, JIThreshold, Radius)
 %%% MERGEOVERLAPPINGOBJECTS checks all overlapping object pairs and merges
 %%% them if the Jaccard index of them is higher then a threshold
 
 display('Merging fully overlapping objects...');
 
-[OverlappingObjectIndexes, OOL] = getOverlappingObjectIndexes( SegmentedLayers );
+[OverlappingObjectIndexes, OOL, OOCentroids] = getOverlappingObjectIndexes( SegmentedLayers );
 
 RemovedIdxList = [];
 
@@ -1071,14 +1025,17 @@ for ooiInd = 1:length(OverlappingObjectIndexes)
             ooj = OverlappingObjectIndexes(oojInd);
             
             if ~ismember(oojInd, RemovedIdxList) && ooi~=ooj
-                ObjectI = SegmentedLayers(:,:,OOL(ooiInd)) == ooi;
-                ObjectJ = SegmentedLayers(:,:,OOL(oojInd)) == ooj;
-                
-                if jaccardCoefficient(ObjectI, ObjectJ)>JIThreshold
-                    MergedObject = any( cat(3, ObjectI, ObjectJ) ,3);
-                    SegmentedLayers(:,:,OOL(ooiInd)) = SegmentedLayers(:,:,OOL(ooiInd)) - ObjectI*ooi + MergedObject*ooi;
-                    SegmentedLayers(:,:,OOL(oojInd)) = SegmentedLayers(:,:,OOL(oojInd)) - ObjectJ*ooj;
-                    RemovedIdxList = [RemovedIdxList ooj];
+                if sqrt((OOCentroids(ooiInd,1)-OOCentroids(oojInd,1))^2+(OOCentroids(ooiInd,2)-OOCentroids(oojInd,2))^2)<Radius*10
+                    
+                    ObjectI = SegmentedLayers(:,:,OOL(ooiInd)) == ooi;
+                    ObjectJ = SegmentedLayers(:,:,OOL(oojInd)) == ooj;
+                    
+                    if jaccardCoefficient(ObjectI, ObjectJ)>JIThreshold
+                        MergedObject = any( cat(3, ObjectI, ObjectJ) ,3);
+                        SegmentedLayers(:,:,OOL(ooiInd)) = SegmentedLayers(:,:,OOL(ooiInd)) - ObjectI*ooi + MergedObject*ooi;
+                        SegmentedLayers(:,:,OOL(oojInd)) = SegmentedLayers(:,:,OOL(oojInd)) - ObjectJ*ooj;
+                        RemovedIdxList = [RemovedIdxList ooj];
+                    end
                 end
             end
             
@@ -1092,7 +1049,7 @@ display([num2str(length(RemovedIdxList)) ' object(s) were merged (and discarded)
 
 end
 
-function [RemovedOverlappingObjects, RemovedIdxList] = removeOverlappingObjectsOverJIThreshold( SegmentedLayers, OverlapJIThreshold )
+function [RemovedOverlappingObjects, RemovedIdxList] = removeOverlappingObjectsOverJIThreshold( SegmentedLayers, OverlapJIThreshold, Radius )
 %%% REMOVEOVERLAPPINGOBJECTSOVERJITHRESHOLD checks every pair of
 %%% overlapping objects, and discards the bigger object, if the Jaccard
 %%% index of the overlapping area and the smaller object is over
@@ -1100,7 +1057,7 @@ function [RemovedOverlappingObjects, RemovedIdxList] = removeOverlappingObjectsO
 
 fprintf('Removing objects with Jaccard index over %0.2f\n', OverlapJIThreshold);
 
-[OverlappingObjectIndexes, OOL] = getOverlappingObjectIndexes( SegmentedLayers );
+[OverlappingObjectIndexes, OOL, OOCentroids] = getOverlappingObjectIndexes( SegmentedLayers );
 
 RemovedIdxList = [];
 
@@ -1112,52 +1069,42 @@ for ooiInd = 1:length(OverlappingObjectIndexes)
     if ~ismember(ooi, RemovedIdxList)
         % to avoid double checking we start second indexing from ooiInd
         for oojInd = ooiInd:length(OverlappingObjectIndexes)
+            
             ooj = OverlappingObjectIndexes(oojInd);
             
             if ~ismember(oojInd, RemovedIdxList) && ooi~=ooj
-                
-                ObjectJ = SegmentedLayers(:,:,OOL(oojInd)) == ooj;
-                PropsJ = regionprops(ObjectJ, 'Area', 'PixelIdxList','Centroid');
-                
-                if (PropsI.Area>PropsJ.Area)
-%                     BiggerObject = ObjectI;
-                    PropsBiggerObject = PropsI;
-                    IdxBiggerObject = ooi;
-%                     SmallerObject = ObjectJ;
-                    PropsSmallerObject = PropsJ;
-%                     IdxSmallerObject = ooj;
-                else
-%                     BiggerObject = ObjectJ;
-                    PropsBiggerObject = PropsJ;
-                    IdxBiggerObject = ooj;
-%                     SmallerObject = ObjectI;
-                    PropsSmallerObject = PropsI;
-%                     IdxSmallerObject = ooi;
-                end
-                
-                if ismember(IdxBiggerObject, RemovedIdxList)
-                    continue;
-                end
-                
-                JI = jaccardCoefficientByPixelIdxList(PropsSmallerObject.PixelIdxList, intersect(PropsSmallerObject.PixelIdxList,PropsBiggerObject.PixelIdxList));
-
-                if JI>OverlapJIThreshold % && 2*numel(PropsSmallerObject.PixelIdxList)<numel(PropsBiggerObject.PixelIdxList)
-%                     MergedObject = any( cat(3, ObjectI, ObjectJ) ,3);
-%                     SegmentedLayers(:,:,OOL(ooiInd)) = SegmentedLayers(:,:,OOL(ooiInd)) - ObjectI*ooi + MergedObject*ooi;
-%                     SegmentedLayers(:,:,OOL(oojInd)) = SegmentedLayers(:,:,OOL(oojInd)) - ObjectJ*ooj;
-                    RemovedIdxList = [RemovedIdxList IdxBiggerObject];
+                if sqrt((OOCentroids(ooiInd,1)-OOCentroids(oojInd,1))^2+(OOCentroids(ooiInd,2)-OOCentroids(oojInd,2))^2)<Radius*10
                     
-%                     figure(11);
-%                     imagesc( (BiggerObject>0)*-1 + (SmallerObject>0)*1 );
-%                     
-%                     text(PropsBiggerObject.Centroid(1), PropsBiggerObject.Centroid(2), sprintf('BID: %d, area: %d',IdxBiggerObject,PropsBiggerObject.Area),'EdgeColor',[0 0 1]);
-%                     text(PropsSmallerObject.Centroid(1), PropsSmallerObject.Centroid(2), sprintf('BID: %d, area: %d',IdxSmallerObject,PropsSmallerObject.Area),'EdgeColor',[1 0 0]);
-%                     
-%                     title(sprintf('%d vs %d: JI=%0.2f',IdxBiggerObject,IdxSmallerObject,JI));
+                    ObjectJ = SegmentedLayers(:,:,OOL(oojInd)) == ooj;
+                    PropsJ = regionprops(ObjectJ, 'Area', 'PixelIdxList','Centroid');
+                    
+                    if (PropsI.Area>PropsJ.Area)
+                        
+                        PropsBiggerObject = PropsI;
+                        IdxBiggerObject = ooi;
+                        
+                        PropsSmallerObject = PropsJ;
+                        
+                    else
+                        
+                        PropsBiggerObject = PropsJ;
+                        IdxBiggerObject = ooj;
+                        
+                        PropsSmallerObject = PropsI;
+                        
+                    end
+                    
+                    if ismember(IdxBiggerObject, RemovedIdxList)
+                        continue;
+                    end
+                    
+                    JI = jaccardCoefficientByPixelIdxList(PropsSmallerObject.PixelIdxList, intersect(PropsSmallerObject.PixelIdxList,PropsBiggerObject.PixelIdxList));
+                    
+                    if JI>OverlapJIThreshold
+                        RemovedIdxList = [RemovedIdxList IdxBiggerObject];
+                    end
                     
                 end
-                
-                
             end
             
         end
@@ -1185,8 +1132,6 @@ function [RemovedOverlappingObjects, RemovedIdx] = removeOverlappingObjects( Seg
 display('Removing overlapping objects...');
 
 [ImageHeight, ImageWidth, LayerNumber] = size( SegmentedLayers );
-
-% SE = strel('disk', 1, 4);
 
 [OverlappingObjectIndexes, OOL] = getOverlappingObjectIndexes( SegmentedLayers );
 
@@ -1220,12 +1165,6 @@ for l = 1:LayerNumber
     %%% that contains 90% of the objects
     props = regionprops(RemovedOverlappingObjects(:,:,l),'EquivDiameter');
     Diameters = [0;cat(1,props.EquivDiameter)];
-%     SortedDiameters = sort(Diameters);
-    %     NbrInTails = max(round(0.05*length(Diameters)),1);
-    %     Lower90Limit = SortedDiameters(NbrInTails);
-    %     Upper90Limit = SortedDiameters(end-NbrInTails+1);
-    
-    %%% Locate objects with diameter outside the specified range
     
     %%% Create image with object intensity equal to the diameter
     DiameterMap = Diameters(tmp+1);
@@ -1260,8 +1199,6 @@ for ll=1:LayerNumber
     ActLayer = map(ActLayer+1);
     RemovedBorderObjects(:,:,ll) = ActLayer;
 end
-
-% [RemovedBorderObjects, num] = bwlabelml(RemovedBorderObjects);
 
 RemovedIdx = unique(SegmentedLayers-RemovedBorderObjects)';
 RemovedIdx = RemovedIdx(RemovedIdx~=0);

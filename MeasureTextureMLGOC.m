@@ -5,7 +5,7 @@ function handles = MeasureTextureMLGOC(handles)
 %
 % SHORT DESCRIPTION:
 % Measures several texture features for identified objects or for entire
-% images. This extended module can handles multi layered object
+% images. This extended module can handle multi-layered object
 % segmentations.
 % *************************************************************************
 %
@@ -471,7 +471,8 @@ for i = 1:6
             columns = columns + 1;
         end
         
-    else % multi-layered segmented image
+    else 
+        %%% Multi-layered segmented image
         tempImage = LabelMatrixImage;
         AllUniqueValues = unique(tempImage(:));
         
