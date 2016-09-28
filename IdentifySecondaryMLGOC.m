@@ -971,15 +971,14 @@ else
         %%% A subplot of the figure window is set to display the colored label
         %%% matrix image.
         subplot(2,2,2);
-        %% Ray hp
-        %             ColoredLabelMatrixImage = CPlabel2rgb(handles,FinalLabelMatrixImage);
-        %         CPimagesc(ColoredLabelMatrixImage,handles);
-        title(['Outlined ',SecondaryObjectName]);
+        OverlapMap = createColorclassImage(tempImage>0);
+        CPimagesc(OverlapMap,handles);
+        title([PrimaryObjectName, ' Overlap map']);
         %%% A subplot of the figure window is set to display the original image
         %%% with secondary object outlines drawn on top.
         subplot(2,2,3);
         CPimagesc(ObjectOutlinesOnOrigImage,handles);
-        title([SecondaryObjectName, ' Outlines on Input Image']);
+        title([SecondaryObjectName, ' Outlines']);
         %%% A subplot of the figure window is set to display the original
         %%% image with outlines drawn for both the primary and secondary
         %%% objects.
@@ -999,7 +998,6 @@ else
     fieldname = ['Segmented',SecondaryObjectName];
     handles.Pipeline.(fieldname) = FinalSecondaryLabels;
     
-    
     %%% Saves images to the handles structure so they can be saved to the hard
     %%% drive, if the user requested.
     try
@@ -1016,22 +1014,51 @@ function out = recolor(L1, L2)
 %%% RECOLOR changes the labels of L2 to labels of L1
 
 props1 = regionprops(L1, 'Centroid');
-props2 = regionprops(L2, 'Centroid');
 
 Centroids1 = round(cat(1, props1.Centroid));
-% Centroids2 = round(cat(1, props2.Centroid));
 
 out = zeros(size(L2));
 
 for i=1:max(L1(:))
     if ~isnan(Centroids1(i,1))
-%         i
-%         Centroids1(i,:)
-%         L2(Centroids1(i,2),Centroids1(i,1))
         out(L2==L2(Centroids1(i,2),Centroids1(i,1))) = L1(Centroids1(i,2),Centroids1(i,1));
+    end
+end
+end
+
+function colorclassImage = createColorclassImage(MLPhi)
+    colors = [	1 0 0;
+				0 1 0;
+				0 0 1;
+				1 1 0;
+				1 0 1;
+				0 1 1;
+				0.5 0 0;
+				0 0.5 0;
+				0 0 0.5;
+				0.5 0.5 0;
+				0.5 0 0.5;
+				0 0.5 0.5;
+				0.5 0.5 0.5];
         
+	[h, w, layerNum] = size(MLPhi);
+    
+    resPhi = zeros(size(MLPhi));
+    
+    for i=1:layerNum
+      resPhi(:,:,i) = double(MLPhi(:,:,i) > 0);
     end
     
+    sumLayers = sum(resPhi, 3);
+    
+    colorclassImage = zeros(h,w,3);
+    
+    for i = 1:layerNum
+        colorclassImage(:,:,1) = colorclassImage(:,:,1) + colors(i,1)*(resPhi(:,:,i)./sumLayers);
+        colorclassImage(:,:,2) = colorclassImage(:,:,2) + colors(i,2)*(resPhi(:,:,i)./sumLayers);
+        colorclassImage(:,:,3) = colorclassImage(:,:,3) + colors(i,3)*(resPhi(:,:,i)./sumLayers);
+    end
+    
+    colorclassImage(isnan(colorclassImage)) = 0;
 
-end
 end
