@@ -950,6 +950,16 @@ else
     
     ObjectCoverage = sum(sum( any(FinalSecondaryLabels>0, 3))) / (ImageHeight*ImageWidth) *100;
     
+    if ~isfield(handles.Measurements,SecondaryObjectName)
+        handles.Measurements.(SecondaryObjectName) = {};
+    end
+    
+    if ~isfield(handles.Measurements,PrimaryObjectName)
+        handles.Measurements.(PrimaryObjectName) = {};
+    end
+    
+    handles = CPrelateobjects(handles,SecondaryObjectName,PrimaryObjectName,FinalSecondaryLabels,tempImage,ModuleName);
+    
     %%%%%%%%%%%%%%%%%%%%%%%
     %%% DISPLAY RESULTS %%%
     %%%%%%%%%%%%%%%%%%%%%%%
