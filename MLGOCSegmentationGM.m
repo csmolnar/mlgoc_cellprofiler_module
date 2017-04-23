@@ -23,11 +23,7 @@ end
 
 fPhi = mlEvolution(ExtendedInitialPhi, Kappa, OptimizationParameters.tolerance, OptimizationParameters.maxIts, PriorPhasefieldParameters, DataParameters, OptimizationParameters.saveFreq, ExtendedImage);
 
-finalPhi = zeros(hImage, wImage, LayerNumber);
-
-for l=1:LayerNumber
-    finalPhi(:,:,l) = fPhi(maxd+1:maxd+hImage,maxd+1:maxd+wImage,l);
-end
+finalPhi = fPhi(maxd+1:maxd+hImage,maxd+1:maxd+wImage,:);
 
 end
 
@@ -119,7 +115,7 @@ while (~converged)
     
     newPhi = oldPhi + deltaPhi;
     
-    meanFuncDer = mean(mean(mean(sqrt((abs(funcDer) .* abs(funcDer))))));
+    meanFuncDer = mean( abs( funcDer(:) ) );
     means(numIts+1) = meanFuncDer;
     
     if ((meanFuncDer < tolerance) || (numIts >= maxIts))
@@ -301,21 +297,14 @@ function [funcDer, overlapDer] = mlEvolveStep(oldPhi, linearOp, parameters, data
 % linearPart is (a multiple of) the Fourier transform of Laplacian, passed in to make things quicker.
 % The zero of Fourier space is at (need to check how FFT works in scilab).
 
-[h,w,layerNum] = size(oldPhi);
+[~,~,layerNum] = size(oldPhi);
 
 kappas = zeros(layerNum,1) + kappa;
 
 funcDer = zeros(size(oldPhi));
 overlapDer = zeros(size(oldPhi));
 
-% close all;
-
 sumPhi = sum(oldPhi,3);
-
-sumPhis = zeros(h,w,layerNum);
-for i=1:layerNum
-    sumPhis(:,:,i) = sumPhi;
-end
 
 % compute the product of the layers and then the use it with data
 % imagePart = computeImagePart(oldPhi, image, parameters);
@@ -361,10 +350,7 @@ for i=1:layerNum
     
     %     Add functional derivative of overlapping energy
     if layerNum>1
-        %                 funcDer(:,:,i) = funcDer(:,:,i) + kappa*2*(sumPhi - oldPhi(:,:,i) + (l-1))/4;
-        
-        overlapDer(:,:,i) = kappas(i)/2 * (sumPhis(:,:,i) - oldPhi(:,:,i) + (layerNum-1) );
-        
+        overlapDer(:,:,i) = kappas(i)/2 * (sumPhi - oldPhi(:,:,i) + (layerNum-1) );
     end
     
 end
@@ -464,24 +450,20 @@ sigmaout = dataParameters.sigmaout;
 
 %     weightout = parameters(i).wout;
 
+deltaMu = muin-muout;
+deltaMu2 = deltaMu^2;
+deltaSigma2 = sigmain^2-sigmaout^2;
+sigmaout2 = sigmaout^2;
+
+intensityPartNominator = (deltaMu2*deltaSigma2) * tildePhiPlus2 ...
+    + (2*sigmaout2*deltaMu2) * tildePhiPlus ...
+    - (2*sigmaout2*deltaMu) * (image-muout) ...
+    - deltaSigma2 * (image-muout).^2;
+intensityPartDenominator = ( sigmaout2 + (deltaSigma2) * tildePhiPlus2 ).^2;
+intensityPart = ( gamma2/4 ) * intensityPartNominator ./ intensityPartDenominator;
+
 for i=1:layerNum
-    
-    %     intensityPart = zeros(Nx, Ny);
-    
-    deltaMu = muin-muout;
-    deltaMu2 = deltaMu^2;
-    deltaSigma2 = sigmain^2-sigmaout^2;
-    sigmaout2 = sigmaout^2;
-    
-    intensityPart =  (deltaMu2*deltaSigma2) * tildePhiPlus2 ...
-        + (2*sigmaout2*deltaMu2) * tildePhiPlus ...
-        - (2*sigmaout2*deltaMu) * (image-muout) ...
-        - deltaSigma2 * (image-muout).^2;
-    
-    intensityPart = intensityPart .* sech2Phi(:,:,i) ./ ( sigmaout2 + (deltaSigma2) * tildePhiPlus2 ).^2 ;
-    
-    imageLinearPart(:,:,i) = ( gamma2/4 ) * intensityPart;
-    
+    imageLinearPart(:,:,i) =  intensityPart .* sech2Phi(:,:,i); 
 end
 
 end
