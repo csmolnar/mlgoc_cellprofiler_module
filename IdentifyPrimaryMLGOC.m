@@ -294,7 +294,7 @@ elseif strcmp(Initialization, 'Neutral')
     else
         LayerNumber = 4;
     end
-    ExtendedInitialPhi = randn(ExtendedImageHeight,ExtendedImageWidth,LayerNumber) + ones(ExtendedImageHeight,ExtendedImageWidth,LayerNumber)*PriorPhasefieldParameters(1).alpha/PriorPhasefieldParameters(1).lambda;
+    ExtendedInitialPhi = randn(ExtendedImageHeight,ExtendedImageWidth,LayerNumber) + PriorPhasefieldParameters(1).alpha/PriorPhasefieldParameters(1).lambda;
     
 elseif strcmp(Initialization, 'Squares')
 %%% Squares initialization uses squares of sides half of the radius of
@@ -317,7 +317,7 @@ else
 %%% seeds are needed).
 
     LayerNumber = str2num(LayerNumString);
-    ExtendedInitialPhi = randn(ExtendedImageHeight,ExtendedImageWidth,LayerNumber) + ones(ExtendedImageHeight,ExtendedImageWidth,LayerNumber)*PriorPhasefieldParameters(1).alpha/PriorPhasefieldParameters(1).lambda;
+    ExtendedInitialPhi = randn(ExtendedImageHeight,ExtendedImageWidth,LayerNumber) + PriorPhasefieldParameters(1).alpha/PriorPhasefieldParameters(1).lambda;
 end
 
 ThisModuleFigureNumber = handles.Current.(['FigureNumberForModule',CurrentModule]);
@@ -351,7 +351,7 @@ PriorPhasefieldParameters = repmat(PriorPhasefieldParameters, LayerNumber);
 
 %%% Cut intensities over BG+4FG
 %%% Using DataParameters fields
-ExtendedImage(ExtendedImage>(DataParameters.muout+4*DataParameters.muin)) = DataParameters.muout+4*DataParameters.muin;
+ExtendedImage(ExtendedImage>(DataParameters.muout+4*(DataParameters.muin-DataParameters.muout))) = DataParameters.muout+4*(DataParameters.muin-DataParameters.muout);
 
 %%%%%%%%%%%%%%%%%%%%%%
 %%% IMAGE ANALYSIS %%%
@@ -404,7 +404,7 @@ else
     RemovedOIdx = [];
 end
 
-%%% Remove overlapping objects
+%%% Remove border objects
 if strcmp(DiscardBorder, 'Yes')
     [RemovedOverlappingObjects, RemovedBIdx] = clearborderml(RemovedOverlappingObjects);
 else
@@ -624,7 +624,7 @@ function [colors, pc] = patchColorSelect( GrayscaleObjects, ncolor )
 
 props = regionprops(GrayscaleObjects, 'Centroid');
 centers = cat(1, props.Centroid);
-iNotEmpty = zeros(length(props),1) +1;
+iNotEmpty = zeros(length(props),1) + 1;
 
 
 for objectNum = length(props):-1:1
@@ -681,50 +681,61 @@ end
 function [L, num] = splitObjects(L, num, radius)
 %%% SPLITOBJECTS slices the objects over a specific size
 
-maxNum = num;
+% maxNum = num;
+uniqueValues = unique(L(:));
+maxNum = max(uniqueValues);
+
 radius = uint32(radius);
-for i=1:num
-    objLayer = uint32(cutObject2Layer(L,i));
-    
-    props = regionprops(objLayer, 'BoundingBox');
-    
-    wo = uint32(props.BoundingBox(3));
-    ho = uint32(props.BoundingBox(4));
-    
-    x0 = uint32(props.BoundingBox(1));
-    y0 = uint32(props.BoundingBox(2));
-    
-    numh = uint32(floor(ho/(2*radius*1.0)));
-    numw = uint32(floor(wo/(2*radius*1.0)));
-    
-    if numh>numw
-        extraLabelNum = numh-1;
-        if extraLabelNum>0
-            maxNum = maxNum + extraLabelNum;
-            for s = 2:numh-1
-                objLayer(y0+(s-1)*2*(radius):y0+(s)*2*(radius)-1,x0:x0+wo) = objLayer(y0+(s-1)*2*(radius):y0+(s)*2*(radius)-1,x0:x0+wo)*(maxNum - (extraLabelNum+s-1));
+if length(uniqueValues)>1
+    for ind=2:length(uniqueValues)
+        i = uniqueValues(ind);
+        
+        objLayer = uint32(cutObject2Layer(L,i));
+        
+        props = regionprops(objLayer, 'BoundingBox');
+        
+        wo = uint32(props.BoundingBox(3));
+        ho = uint32(props.BoundingBox(4));
+        
+        x0 = uint32(props.BoundingBox(1));
+        y0 = uint32(props.BoundingBox(2));
+        
+        numh = uint32(floor(ho/(2*radius*1.0)));
+        numw = uint32(floor(wo/(2*radius*1.0)));
+        
+        if numh>numw
+            extraLabelNum = numh-1;
+            if extraLabelNum>0
+                maxNum = maxNum + extraLabelNum;
+                for s = 2:numh-1
+                    objLayer(y0+(s-1)*2*(radius):y0+(s)*2*(radius)-1,x0:x0+wo-1) = objLayer(y0+(s-1)*2*(radius):y0+(s)*2*(radius)-1,x0:x0+wo-1)*(maxNum - (extraLabelNum+s-1));
+                end
+                objLayer(y0+(numh-1)*2*radius:y0+ho-1,x0:x0+wo-1) = objLayer(y0+(numh-1)*2*radius:y0+ho-1,x0:x0+wo-1)*(maxNum);
             end
-            objLayer(y0+(numh-1)*2*radius:y0+ho,x0:x0+wo) = objLayer(y0+(numh-1)*2*radius:y0+ho,x0:x0+wo)*(maxNum);
-        end
-        
-        
-    else
-        extraLabelNum = numw-1;
-        if extraLabelNum>0
-            maxNum = maxNum + extraLabelNum;
             
-            for s = 2:numh-1
-                objLayer(y0:y0+ho,x0+(s-1)*2*radius:x0+(s)*2*radius-1) = objLayer(y0:y0+ho,x0+(s-1)*2*radius:x0+(s)*2*radius-1)*(maxNum - (extraLabelNum+s-1));
+            
+        else
+            extraLabelNum = numw-1;
+            if extraLabelNum>0
+                maxNum = maxNum + extraLabelNum;
+                
+                for s = 2:numh-1
+                    objLayer(y0:y0+ho-1,x0+(s-1)*2*radius:x0+(s)*2*radius-1) = objLayer(y0:y0+ho-1,x0+(s-1)*2*radius:x0+(s)*2*radius-1)*(maxNum - (extraLabelNum+s-1));
+                end
+                try
+                    objLayer(y0:y0+ho-1,x0+(numw-1)*2*radius:x0+wo) = objLayer(y0:y0+ho-1, x0+(numw-1)*2*radius:x0+wo)*(maxNum);
+                catch
+                    error('Index exceeds matrix dimension (x0=%d,wo=%d,y0=%d,ho=%d,numw=%d,radius=%d,maxNum=%d',x0,wo,y0,ho,numw,radius,maxNum);
+                end
             end
-            objLayer(y0:y0+ho,x0+(numw-1)*2*radius:x0+wo) = objLayer(y0:y0+ho, x0+(numw-1)*2*radius:x0+wo)*(maxNum);
         end
+        
+        for n = maxNum-extraLabelNum+1:maxNum
+            lIndices = objLayer==n;
+            L(lIndices) = n;
+        end
+        
     end
-   
-    for n = maxNum-extraLabelNum+1:maxNum
-        lIndices = objLayer==n;
-        L(lIndices) = n;
-    end
-    
 end
 num = maxNum;
 

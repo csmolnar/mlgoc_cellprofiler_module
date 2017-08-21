@@ -513,7 +513,9 @@ for i = 1:length(ObjectNameList)
             %%% Number of objects
             uicontrol(ThisModuleFigureNumber,'style','text','units','normalized', 'position', [0.35+0.1*(columns-1) 0.85 0.1 0.03],...
                 'HorizontalAlignment','center','BackgroundColor',[.7 .7 .9],'fontname','Helvetica',...
-                'fontsize',FontSize,'string',num2str(max(tempImage(:))));
+                'fontsize',FontSize,'string',num2str(length(unique(tempImage(:)))-1));
+            
+            ObjectCount = length(unique(tempImage(:)))-1;
             
             if ObjectCount > 0
                 %%% Basic features

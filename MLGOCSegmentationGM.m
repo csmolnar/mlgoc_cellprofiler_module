@@ -97,8 +97,7 @@ while (~converged)
 %         end
 %         
 %     end
-    display(['Iteration: ' num2str(numIts)]);
-
+    
     [funcDer, overlapDer] = mlEvolveStep(oldPhi, linearOp, parameters, dataParameters, extImage, kappa, useTanh);
     
     funcDer = funcDer + overlapDer;
@@ -117,14 +116,7 @@ while (~converged)
     
     meanFuncDer = mean( abs( funcDer(:) ) );
     means(numIts+1) = meanFuncDer;
-    
-    if ((meanFuncDer < tolerance) || (numIts >= maxIts))
-        converged = 1;
-%         numIts
-%         meanFuncDer
-%         tolerance
-    end
-    
+   
 %     if mod(numIts, 100) == 0
 %        fprintf('Iteration: %d\r', numIts);
 %         numIts
@@ -138,7 +130,6 @@ while (~converged)
 %         end
 %     end
     
-    numIts = numIts + 1;
     
 %     [E, ~, ~, ~] = mlEnergy(oldPhi, parameters);
 %     Ep(numIts) = sum(E);
@@ -162,9 +153,20 @@ while (~converged)
 %     
 %     end
     
+    if mod(numIts, int16(maxIts/10))==0
+        fprintf('Iteration %6d (%3d%%)\n', numIts, int16(100.0*numIts/maxIts));
+    end
+    
 %% change phase field
 
     oldPhi = newPhi;
+    
+    numIts = numIts + 1;
+    
+    if ((meanFuncDer < tolerance) || (numIts >= maxIts))
+        converged = 1;
+        fprintf('Iteration %6d (%3d%%)\n', maxIts, 100);
+    end
     
 end
 
