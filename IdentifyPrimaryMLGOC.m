@@ -331,16 +331,21 @@ if any(findobj == ThisModuleFigureNumber)
         CPresizefigure(OrigImage,'TwoByTwo',ThisModuleFigureNumber)
     end
     %%% A subplot of the figure window is set to display the original image.
-    h11 = subplot(2,2,1);
+    h11 = subplot(2,2,1, 'replace');
     CPimagesc(OrigImage,handles);
     title(['Input Image, cycle # ', num2str(handles.Current.SetBeingAnalyzed)]);
     
     %%% A subplot of the figure window is set to display the input objects
     %%% for correction
-    h12 = subplot(2,2,2);
+    h12 = subplot(2,2,2, 'replace');
     im = CPlabel2rgb(handles,SegmentedGrayScaleObjects.*MaskSegmentedObject);
     CPimagesc(im,handles);
     title({'Masked Objects'; ['#layernum: ' num2str(LayerNumber)]});
+    
+    h21 = subplot(2,2,3, 'replace');
+    delete(h21);
+    h22 = subplot(2,2,4, 'replace');
+    delete(h22);
 end
 
 drawnow;
